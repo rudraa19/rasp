@@ -1,6 +1,7 @@
 import cv2
 import numpy as np
 import RPi.GPIO as GPIO
+import os
 
 # Initialize GPIO for LED
 LED_PIN = 21
@@ -9,6 +10,13 @@ GPIO.setup(LED_PIN, GPIO.OUT)
 GPIO.output(LED_PIN, GPIO.LOW)
 
 def detect_fingers(frame):
+    """
+    Detect the number of fingers raised in the given frame.
+    Args:
+        frame (numpy array): The input video frame.
+    Returns:
+        int: The number of fingers detected.
+    """
     # Convert to grayscale
     gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
 
@@ -55,46 +63,65 @@ def detect_fingers(frame):
             return finger_count + 1  # +1 for the thumb
     return 0
 
-# Start video capture
-cap = cv2.VideoCapture(0)
+def record_video_and_detect_fingers(output_file="video.h264", width=640, height=480, fps=30):
+    """
+    Record video and detect fingers simultaneously.
+    Args:
+        output_file (str): The name of the output video file.
+        width (int): Video width (default 640).
+        height (int): Video height (default 480).
+        fps (int): Frames per second (default 30).
+    """
+    # Start video recording with libcamera
+    command = f"libcamera-vid -o {output_file} --width {width} --height {height} --framerate {fps} -t 0 --inline &"
+    os.system(command)
 
-if not cap.isOpened():
-    print("Error: Could not open video stream.")
-    exit()
+    # Open camera feed for real-time display and processing
+    cap = cv2.VideoCapture(0)
 
-print("Press 'q' to quit.")
-try:
-    while True:
-        ret, frame = cap.read()
-        if not ret:
-            print("Error: Could not read frame.")
-            break
+    if not cap.isOpened():
+        print("Error: Could not open video stream.")
+        os.system("pkill libcamera-vid")  # Stop recording
+        return
 
-        # Flip the frame horizontally (mirror view)
-        frame = cv2.flip(frame, 1)
+    print("Press 'q' to quit.")
+    try:
+        while True:
+            ret, frame = cap.read()
+            if not ret:
+                print("Error: Could not read frame.")
+                break
 
-        # Detect fingers
-        finger_count = detect_fingers(frame)
+            # Flip the frame horizontally (mirror view)
+            frame = cv2.flip(frame, 1)
 
-        # Turn on LED if four fingers are detected
-        if finger_count == 4:
-            GPIO.output(LED_PIN, GPIO.HIGH)
-            cv2.putText(frame, "LED ON: Four Fingers Detected", (10, 30), cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 255, 0), 2)
-        else:
-            GPIO.output(LED_PIN, GPIO.LOW)
-            cv2.putText(frame, f"Fingers: {finger_count}", (10, 30), cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 0, 255), 2)
+            # Detect fingers
+            finger_count = detect_fingers(frame)
 
-        # Show the frame
-        cv2.imshow("Hand Tracking", frame)
+            # Turn on LED if four fingers are detected
+            if finger_count == 4:
+                GPIO.output(LED_PIN, GPIO.HIGH)
+                cv2.putText(frame, "LED ON: Four Fingers Detected", (10, 30), cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 255, 0), 2)
+            else:
+                GPIO.output(LED_PIN, GPIO.LOW)
+                cv2.putText(frame, f"Fingers: {finger_count}", (10, 30), cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 0, 255), 2)
 
-        # Break loop on 'q' key press
-        if cv2.waitKey(1) & 0xFF == ord('q'):
-            break
-except KeyboardInterrupt:
-    print("\nProgram interrupted.")
-finally:
-    # Cleanup
-    cap.release()
-    cv2.destroyAllWindows()
-    GPIO.output(LED_PIN, GPIO.LOW)
-    GPIO.cleanup()
+            # Show the frame
+            cv2.imshow("Hand Tracking", frame)
+
+            # Break loop on 'q' key press
+            if cv2.waitKey(1) & 0xFF == ord('q'):
+                break
+    except KeyboardInterrupt:
+        print("\nProgram interrupted.")
+    finally:
+        # Cleanup
+        cap.release()
+        cv2.destroyAllWindows()
+        GPIO.output(LED_PIN, GPIO.LOW)
+        GPIO.cleanup()
+        os.system("pkill libcamera-vid")  # Stop recording
+        print("Stopped video recording.")
+
+# Run the function
+record_video_and_detect_fingers("output_video.h264", width=640, height=480, fps=30)
