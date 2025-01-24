@@ -1,7 +1,6 @@
 import cv2
 import numpy as np
 import RPi.GPIO as GPIO
-import os
 
 # Initialize GPIO for LED
 LED_PIN = 21
@@ -63,25 +62,17 @@ def detect_fingers(frame):
             return finger_count + 1  # +1 for the thumb
     return 0
 
-def record_video_and_detect_fingers(output_file="video.h264", width=640, height=480, fps=30):
+def main():
     """
-    Record video and detect fingers simultaneously.
-    Args:
-        output_file (str): The name of the output video file.
-        width (int): Video width (default 640).
-        height (int): Video height (default 480).
-        fps (int): Frames per second (default 30).
+    Main function to capture video feed, detect fingers, and control LED.
     """
-    # Start video recording with libcamera
-    command = f"libcamera-vid -o {output_file} --width {width} --height {height} --framerate {fps} -t 0 --inline &"
-    os.system(command)
-
-    # Open camera feed for real-time display and processing
+    # Open camera feed
     cap = cv2.VideoCapture(0)
+    cap.set(3, 640)  # Set width
+    cap.set(4, 480)  # Set height
 
     if not cap.isOpened():
         print("Error: Could not open video stream.")
-        os.system("pkill libcamera-vid")  # Stop recording
         return
 
     print("Press 'q' to quit.")
@@ -120,8 +111,7 @@ def record_video_and_detect_fingers(output_file="video.h264", width=640, height=
         cv2.destroyAllWindows()
         GPIO.output(LED_PIN, GPIO.LOW)
         GPIO.cleanup()
-        os.system("pkill libcamera-vid")  # Stop recording
-        print("Stopped video recording.")
+        print("Program terminated.")
 
-# Run the function
-record_video_and_detect_fingers("output_video.h264", width=640, height=480, fps=30)
+if __name__ == "__main__":
+    main()
