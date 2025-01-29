@@ -3,6 +3,7 @@ import RPi.GPIO as GPIO
 import time
 from cvzone.HandTrackingModule import HandDetector
 import os
+import threading
 
 os.environ["OPENCV_VIDEOIO_DEBUG"] = "1"
 os.environ["OPENCV_VIDEOIO_PRIORITY_MSMF"] = "0"
@@ -12,16 +13,32 @@ relay_status_map = [0]
 relay_cycle_map = [0]
 relay_pin_map = [21]
 
+LED_PIN = 23
+
 GPIO.setmode(GPIO.BCM)
+
+def setup_all_pins():
+	for pin in relay_pin_map:
+		GPIO.setup(pin, GPIO.OUT)
+	GPIO.setup(LED_PIN, GPIO.OUT)
 
 def set_all_pins_low():
 	for pin in relay_pin_map:
 		GPIO.output(pin, GPIO.LOW)
+	GPIO.output(LED_PIN, GPIO.LOW)
 
-for pin in relay_pin_map:
-	GPIO.setup(pin, GPIO.OUT)
-
+setup_all_pins()
 set_all_pins_low()
+
+def blink_led():
+	while True:
+        GPIO.output(LED_PIN, GPIO.HIGH)
+        time.sleep(0.5)
+        GPIO.output(LED_PIN, GPIO.LOW)
+        time.sleep(0.5)
+
+infinite_led_blink_thread = threading.Thread(target=blink_led)
+infinite_led_blink_thread.start()
 
 # Initialize webcam
 camera = cv2.VideoCapture("/dev/webcam")
@@ -34,6 +51,17 @@ def get_relay_cycle(relay_number):
 
 def set_relay(relay_number, value):
 	relay_status_map[relay_number] = value
+
+def handle_fingerup_cycle(fingerup, fingerIndex, relay_number):
+	if fingerup[fingerIndex] == 1:
+		if get_relay_cycle(relay_number) == 0:
+			set_relay_cycle(relay_number, 1)
+			set_relay(relay_number, 1)
+			time.sleep(0.1)
+		elif get_relay_cycle(relay_number) == 2:
+			set_relay_cycle(relay_number, 3)
+			set_relay(relay_number, 0)
+			time.sleep(0.1)
 
 detector = HandDetector(maxHands=1, detectionCon=0.8)
 
@@ -71,20 +99,13 @@ try:
 				fingerup = detector.fingersUp(hand_info)
 				print(f"fingerup: {fingerup}")
 
-				if fingerup[1] == 1:
-					if get_relay_cycle(0) == 0:
-						set_relay_cycle(0, 1)
-						set_relay(0, 1)
-						time.sleep(0.1)
-					elif get_relay_cycle(0) == 2:
-						set_relay_cycle(0, 3)
-						set_relay(0, 0)
-						time.sleep(0.1)
+				handle_fingerup_cycle(fingerup, 1, 0)
 		else:
-			if get_relay_cycle(0) == 1:
-				set_relay_cycle(0, 2)
-			elif get_relay_cycle(0) == 3:
-				set_relay_cycle(0, 0)
+			for index in enumerate(relay_status_map):
+				if get_relay_cycle(index) == 1:
+					set_relay_cycle(index, 2)
+				elif get_relay_cycle(index) == 3:
+					set_relay_cycle(index, 0)
 
 		print(f"relay_status_map: {relay_status_map}")
 		for index, relay_status in enumerate(relay_status_map):
