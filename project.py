@@ -9,11 +9,11 @@ os.environ["OPENCV_VIDEOIO_DEBUG"] = "1"
 os.environ["OPENCV_VIDEOIO_PRIORITY_MSMF"] = "0"
 #os.system("echo 0 | sudo tee /sys/module/usbcore/parameters/autosuspend")
 
-relay_status_map = [0]
-relay_cycle_map = [0]
-relay_pin_map = [21]
+relay_status_map = [0, 0]
+relay_cycle_map = [0, 0]
+relay_pin_map = [21, 10]
 
-LED_PIN = 23
+LED_PIN = 4
 
 GPIO.setmode(GPIO.BCM)
 
@@ -32,10 +32,12 @@ set_all_pins_low()
 
 def blink_led():
 	while True:
-        GPIO.output(LED_PIN, GPIO.HIGH)
-        time.sleep(0.5)
-        GPIO.output(LED_PIN, GPIO.LOW)
-        time.sleep(0.5)
+		print("LED HIGH")
+		GPIO.output(LED_PIN, GPIO.HIGH)
+		time.sleep(1)
+		print("LED LOW")
+		GPIO.output(LED_PIN, GPIO.LOW)
+		time.sleep(1)
 
 infinite_led_blink_thread = threading.Thread(target=blink_led)
 infinite_led_blink_thread.start()
@@ -91,7 +93,7 @@ try:
 		# Process the frame with Mediapipe
 		hand, frame = detector.findHands(frame, draw=True)
 
-		print(f"cycle_map: {relay_cycle_map}")
+		# print(f"cycle_map: {relay_cycle_map}")
 		if hand:
 			hand_info = hand[0]
 
@@ -100,14 +102,17 @@ try:
 				print(f"fingerup: {fingerup}")
 
 				handle_fingerup_cycle(fingerup, 1, 0)
+				handle_fingerup_cycle(fingerup, 4, 1)
 		else:
-			for index in enumerate(relay_status_map):
+			for index, _ in enumerate(relay_status_map):
+				# print(f"index: {index}")
+				# print(f"relay_cycle_map: {relay_cycle_map}")
 				if get_relay_cycle(index) == 1:
 					set_relay_cycle(index, 2)
 				elif get_relay_cycle(index) == 3:
 					set_relay_cycle(index, 0)
 
-		print(f"relay_status_map: {relay_status_map}")
+		# print(f"relay_status_map: {relay_status_map}")
 		for index, relay_status in enumerate(relay_status_map):
 			#print(f"index: {index}")
 			pin = relay_pin_map[index]
