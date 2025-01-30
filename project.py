@@ -14,16 +14,23 @@ relay_cycle_map = [0, 0]
 relay_pin_map = [21, 10]
 
 LED_PIN = 4
+"""
+0 = idle
+1 = cam_err
+"""
+LED_PIN_STATE = 0
 
 GPIO.setmode(GPIO.BCM)
 
 def setup_all_pins():
 	for pin in relay_pin_map:
+		print(f"Setting {pin} as OUT")
 		GPIO.setup(pin, GPIO.OUT)
 	GPIO.setup(LED_PIN, GPIO.OUT)
 
 def set_all_pins_low():
 	for pin in relay_pin_map:
+		print(f"{pin}: LOW")
 		GPIO.output(pin, GPIO.LOW)
 	GPIO.output(LED_PIN, GPIO.LOW)
 
@@ -32,12 +39,27 @@ set_all_pins_low()
 
 def blink_led():
 	while True:
-		print("LED HIGH")
-		GPIO.output(LED_PIN, GPIO.HIGH)
-		time.sleep(1)
-		print("LED LOW")
-		GPIO.output(LED_PIN, GPIO.LOW)
-		time.sleep(1)
+		print(f"LED_PIN_STATE: {LED_PIN_STATE}")
+		if LED_PIN_STATE == 0:
+			print("LED HIGH")
+			GPIO.output(LED_PIN, GPIO.HIGH)
+			time.sleep(0.1)
+			print("LED LOW")
+			GPIO.output(LED_PIN, GPIO.LOW)
+			time.sleep(1)
+		if LED_PIN_STATE == 1:
+			print("LED HIGH")
+			GPIO.output(LED_PIN, GPIO.HIGH)
+			time.sleep(0.1)
+			print("LED LOW")
+			GPIO.output(LED_PIN, GPIO.LOW)
+			time.sleep(0.1)
+			print("LED HIGH")
+			GPIO.output(LED_PIN, GPIO.HIGH)
+			time.sleep(0.1)
+			print("LED LOW")
+			GPIO.output(LED_PIN, GPIO.LOW)
+
 
 infinite_led_blink_thread = threading.Thread(target=blink_led)
 infinite_led_blink_thread.start()
@@ -73,18 +95,33 @@ def cleanup():
 	cv2.destroyAllWindows()
 	set_all_pins_low()
 
+
+PIN_OUTPUT_MAP = {}
+
+def set_pin_output(pin, state):
+	if pin in PIN_OUTPUT_MAP:
+		if PIN_OUTPUT_MAP[pin] == state:
+			return
+	PIN_OUTPUT_MAP[pin] = state
+	GPIO.output(pin, state)
+
 try:
 	while True:
+
 		if cv2.waitKey(1) & 0xFF == ord('q'):
 			break
 
 		ret, frame = camera.read()
 		if not ret:
+			print("Failed to grab frame")
+			LED_PIN_STATE = 1
 			camera.release()
-			#camera = None
 			time.sleep(1)  # Short delay before reinitializing
 			camera = cv2.VideoCapture("/dev/webcam")
 			continue
+
+		if LED_PIN_STATE == 1:
+			LED_PIN_STATE = 0
 
 		# Flip the frame horizontally for a mirror-like effect
 		frame = cv2.flip(frame, 1)
@@ -118,10 +155,10 @@ try:
 			pin = relay_pin_map[index]
 			if relay_status == 1:
 				print(f"PIN: {pin} -> HIGH")
-				GPIO.output(pin, GPIO.HIGH)
+				set_pin_output(pin, GPIO.HIGH)
 			else:
 				print(f"PIN: {pin} -> LOW")
-				GPIO.output(pin, GPIO.LOW)
+				set_pin_output(pin, GPIO.LOW)
 
 		# Display the frame
 		# cv2.imshow("Hand Tracking", frame)
